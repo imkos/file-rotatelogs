@@ -29,9 +29,9 @@ func GenerateFn(pattern *strftime.Strftime, clock interface{ Now() time.Time }, 
 	// the local zone
 	var base time.Time
 	if now.Location() != time.UTC {
-		base = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond(), time.UTC)
-		base = base.Truncate(rotationTime)
-		base = time.Date(base.Year(), base.Month(), base.Day(), base.Hour(), base.Minute(), base.Second(), base.Nanosecond(), base.Location())
+		base1 := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond(), time.Local)
+		base2 := base.Truncate(rotationTime)
+		base = time.Date(base2.Year(), base2.Month(), base2.Day(), base1.Hour(), base1.Minute(), base1.Second(), base1.Nanosecond(), time.Local)
 	} else {
 		base = now.Truncate(rotationTime)
 	}
@@ -45,11 +45,11 @@ func CreateFile(filename string) (*os.File, error) {
 	// make sure the dir is existed, eg:
 	// ./foo/bar/baz/hello.log must make sure ./foo/bar/baz is existed
 	dirname := filepath.Dir(filename)
-	if err := os.MkdirAll(dirname, 0755); err != nil {
+	if err := os.MkdirAll(dirname, 0o755); err != nil {
 		return nil, errors.Wrapf(err, "failed to create directory %s", dirname)
 	}
 	// if we got here, then we need to create a file
-	fh, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	fh, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, errors.Errorf("failed to open file %s: %s", filename, err)
 	}
