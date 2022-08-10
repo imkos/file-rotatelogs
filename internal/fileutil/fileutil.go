@@ -29,9 +29,10 @@ func GenerateFn(pattern *strftime.Strftime, clock interface{ Now() time.Time }, 
 	// the local zone
 	var base time.Time
 	if now.Location() != time.UTC {
-		base1 := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond(), time.Local)
-		base2 := base.Truncate(rotationTime)
-		base = time.Date(base2.Year(), base2.Month(), base2.Day(), base1.Hour(), base1.Minute(), base1.Second(), base1.Nanosecond(), time.Local)
+		base = now
+		// base := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond(), time.Local)
+		// base := base.Truncate(rotationTime)
+		// base = time.Date(base.Year(), base.Month(), base.Day(), base.Hour(), base.Minute(), base.Second(), base.Nanosecond(), time.Local)
 	} else {
 		base = now.Truncate(rotationTime)
 	}
