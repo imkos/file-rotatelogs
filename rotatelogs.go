@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -253,9 +254,26 @@ func (rl *RotateLogs) Rotate() error {
 	return err
 }
 
+type unlinkFile struct {
+	filename  string
+	latestMod int64
+}
+
+type unlinkFileList []*unlinkFile
+
+func (a unlinkFileList) Len() int      { return len(a) }
+func (a unlinkFileList) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a unlinkFileList) Less(i, j int) bool {
+	if a[i].latestMod != a[j].latestMod {
+		return a[i].latestMod < a[j].latestMod
+	} else {
+		return a[i].filename < a[j].filename
+	}
+}
+
 func (rl *RotateLogs) rotateNolock(filename string) error {
 	lockfn := filename + `_lock`
-	fh, err := os.OpenFile(lockfn, os.O_CREATE|os.O_EXCL, 0644)
+	fh, err := os.OpenFile(lockfn, os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		// Can't lock, just return
 		return err
@@ -295,7 +313,7 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 		// the directory where rl.linkName should be created must exist
 		_, err := os.Stat(linkDir)
 		if err != nil { // Assume err != nil means the directory doesn't exist
-			if err := os.MkdirAll(linkDir, 0755); err != nil {
+			if err := os.MkdirAll(linkDir, 0o755); err != nil {
 				return errors.Wrapf(err, `failed to create directory %s`, linkDir)
 			}
 		}
@@ -317,7 +335,7 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 	cutoff := rl.clock.Now().Add(-1 * rl.maxAge)
 
 	// the linter tells me to pre allocate this...
-	toUnlink := make([]string, 0, len(matches))
+	toUnlink := make(unlinkFileList, 0, len(matches))
 	for _, path := range matches {
 		// Ignore lock files
 		if strings.HasSuffix(path, "_lock") || strings.HasSuffix(path, "_symlink") {
@@ -341,8 +359,12 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 		if rl.rotationCount > 0 && fl.Mode()&os.ModeSymlink == os.ModeSymlink {
 			continue
 		}
-		toUnlink = append(toUnlink, path)
+		toUnlink = append(toUnlink, &unlinkFile{
+			filename:  path,
+			latestMod: fi.ModTime().Unix(),
+		})
 	}
+	sort.Sort(toUnlink)
 
 	if rl.rotationCount > 0 {
 		// Only delete if we have more than rotationCount
@@ -360,8 +382,8 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 	guard.Enable()
 	go func() {
 		// unlink files on a separate goroutine
-		for _, path := range toUnlink {
-			os.Remove(path)
+		for _, u := range toUnlink {
+			os.Remove(u.filename)
 		}
 	}()
 
